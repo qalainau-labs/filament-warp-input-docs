@@ -2111,6 +2111,22 @@ php artisan warp:assign-tenant "App\Models\Team" 1
 
 Rows of other teams are not touched. The command is shared by every Warp plugin and fills the tables of each one you have installed.
 
+**Testing with tenancy.** Set the panel and the tenant the way Filament does. Another team's rows are not an error, they are simply not there: duplicate warnings, suggestions and recently used values find nothing, and numbers in order start again from 1:
+
+```php
+use Filament\Facades\Filament;
+use Qalainau\FilamentWarpInput\Sequence;
+
+Filament::setCurrentPanel(Filament::getPanel('app'));
+
+Filament::setTenant($north);
+expect(Sequence::next('invoices', 'INV-{000}'))->toBe('INV-001')
+    ->and(Sequence::next('invoices', 'INV-{000}'))->toBe('INV-002');
+
+Filament::setTenant($south);
+expect(Sequence::next('invoices', 'INV-{000}'))->toBe('INV-001'); // each team counts on its own
+```
+
 ## Testing
 
 Fill forms with what people type and expect the clean value in the database:

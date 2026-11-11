@@ -235,7 +235,7 @@ What it does:
 - **Reads what people paste.** `+44 20 7946 0958` switches the country to the UK. Full-width digits (`０９０ー１２３４ー５６７８`), long-vowel dashes, spaces and dots are all read.
 - **Extensions.** `ext. 12`, `x12`, `#12` and `内線 12` are kept as an extension.
 - **The kind of number.** When the user leaves the field, it shows *Mobile* or *Landline* under the field, and can refuse other kinds (`->types([PhoneType::Mobile])`).
-- **One stored format.** Numbers are saved in E.164 (`+16175550123`), so the same number is always the same string: searching, duplicate checks and sending text messages just work. They are shown again the way they are written in the country.
+- **One stored format.** Numbers are saved in E.164 (`+16175550123`), so the same number is always the same string: searching, duplicate checks and sending text messages just work. They are shown again the way they are written in the country, and a number from another country is written the same way in the field, in tables and in infolists (`+81 90-1234-5678`).
 
 A complete example:
 
@@ -603,7 +603,7 @@ AddressFields::make()
 **How it behaves**
 
 - **Required parts follow the country.** With `->required()`, a US address needs the street, city, state and ZIP; a UK address needs the street, town and postcode, and has no state at all. Without `->required()` the address can stay empty, but once someone types any part, the parts that country needs become required. An address left empty saves `null` in every column, the country too.
-- **Changing the country** redraws the fields in the new order. A state that does not exist in the new country is cleared, and parts the new country does not use are saved as `null`, so a German address never keeps an old US state.
+- **Changing the country** redraws the fields in the new order. A state that does not exist in the new country is cleared, and so are the postal code, city and district of the old country; the street lines are kept, since they take the longest to type. Parts the new country does not use are saved as `null`, so a German address never keeps an old US state or ZIP code.
 - **Postal codes are saved the way the country writes them**: `１０００００１` becomes `100-0001`, `sw1a1aa` becomes `SW1A 1AA`, `021101234` becomes `02110-1234`. A code in the wrong shape fails validation with an example: "Enter the ZIP code the way it is written in United States, for example 95014."
 - **States are picked from a list** where the country has one (US states, Canadian provinces, Japanese prefectures, Brazilian states and about 40 more). Names are shown in the screen's language: an English screen shows "Tokyo", a Japanese screen shows "東京都"; both save `東京都`. A state saved earlier in another form (`Massachusetts`, `US-MA`) is read and saved again in the chosen form.
 - **Two address blocks on one form** (billing and shipping) never mix: postal code answers, suggestions and the map belong to their own block.
@@ -679,7 +679,7 @@ Every `PostalCodeInput`, with or without `fillAddress()`, turns full-width digit
 
 ### Address suggestions while typing
 
-With a search service set on the panel, typing in the street field shows matching addresses from the chosen country. Picking one fills in every part (and the map pin). Off by default:
+With a search service set on the panel, typing in the street field shows matching addresses from the chosen country. When the city or postal code is already filled in (for example from the postal code lookup), the search uses them too, so `100 Summer St` lists the one in Boston instead of the same street in other towns; if nothing matches them, the typed words alone are searched. Picking one fills in every part (and the map pin). Off by default:
 
 ```php
 FilamentWarpInputPlugin::make()

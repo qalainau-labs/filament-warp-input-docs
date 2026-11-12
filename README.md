@@ -2162,7 +2162,7 @@ php artisan warp:assign-tenant              # give rows saved without a team to 
 
 - PHP 8.3+ with the `intl` extension (Filament needs it too)
 - Laravel 12 or 13
-- Filament 5
+- Filament 5.11 or later
 - SQLite, MySQL 8.0+, MariaDB 10.11+ or PostgreSQL 14+ (only for `SequenceInput` and `rememberRecent()`)
 - Camera, microphone and some clipboard features need HTTPS (browsers allow them only on secure pages, and on `localhost`)
 

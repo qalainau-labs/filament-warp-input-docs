@@ -2,7 +2,11 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
-## [Unreleased]
+## [1.0.1] - 2026-11-12
+
+### Changed
+
+- Now requires Filament 5.11 or later (was 5.0). Parts of the plugin did not work on older 5.x versions, which were never tested. The tests now also run on the lowest supported versions before each release.
 
 ## [1.0.0] - 2026-11-11
 

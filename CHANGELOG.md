@@ -2,6 +2,12 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [1.1.1] - 2026-11-13
+
+### Fixed
+
+- **`TextEntry::warpEditable()`:** when someone else saved the same field within the same second as you opened it, your save went through and replaced their value. The check now compares the field's own value as well as `updated_at`, which only keeps whole seconds.
+
 ## [1.1.0] - 2026-11-13
 
 ### Added

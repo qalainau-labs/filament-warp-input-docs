@@ -2,6 +2,18 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [1.1.0] - 2026-11-13
+
+### Added
+
+- **`PickList`:** choose many items from two lists. Double-click, the arrow buttons or drag to move items; search in both lists; put the chosen items in order with `reorderable()` (saved in the array, or in a pivot column with `reorderable(pivotColumn: 'sort')`); `maxItems()`; with `relationship()`, many records are searched on the server (`serverSearchAbove()`). Saves the same as `Select` with `multiple()`.
+- **`RecordSelect::columns([...])`:** the list as a table with a heading over each column, so similar records can be told apart by code, price or stock. `OptionColumn` formats money like `MoneyColumn`, numbers, or your own text. The saved key doesn't change.
+- **`MentionTextarea` and `MentionEntry`:** `@` suggests people and `#` suggests records while typing. The text is saved in your own column with the keys (`@[Aiko Tanaka](12)`), so older notes read as before; `onMention()` gets the people newly mentioned once the save is final. Mentions are checked on the server and limited to the current team.
+- **Paste to fill (`FormAssist::make()->smartPaste()`):** paste an order email or a business card and Claude fills in the form's fields and the rows of a repeater, through the same conversions as typing (choices by label, phone numbers and amounts formatted by their fields). Filled fields are marked **AI** until changed. The pasted text is sent to Anthropic when the user presses the button; without a key the button isn't shown. Use `using:` for another service.
+- **`TextEntry::warpEditable()`:** edit a value right on the view page with a Warp Input field. Enter saves, Esc cancels; only people who may update the record see the pencil, and a save stops when someone else saved first.
+
+None of these change existing fields or need a new table.
+
 ## [1.0.1] - 2026-11-12
 
 ### Changed

@@ -41,6 +41,8 @@ Type a customer's address from the ZIP code, paste a phone number from an email,
   - [Totals per currency and per tax rate](#totals-per-currency-and-per-tax-rate)
   - [Validation outside a form](#validation-outside-a-form-1)
 - [Choosing a record](#choosing-a-record)
+  - [A table in the list (`columns()`)](#a-table-in-the-list-columns)
+- [Choosing many from two lists](#choosing-many-from-two-lists)
 - [Suggestions while typing](#suggestions-while-typing)
 - [Recently used values](#recently-used-values)
 - [Text fields](#text-fields)
@@ -55,6 +57,7 @@ Type a customer's address from the ZIP code, paste a phone number from an email,
   - [Validation rules](#validation-rules-1)
   - [Table columns](#table-columns)
   - [Adding your own helpers to the text fields](#adding-your-own-helpers-to-the-text-fields)
+- [Mentions](#mentions)
 - [IDs and numbers](#ids-and-numbers)
   - [The ID field](#the-id-field)
   - [Hiding numbers](#hiding-numbers)
@@ -79,6 +82,8 @@ Type a customer's address from the ZIP code, paste a phone number from an email,
   - [Copy from last time (`copyFromPrevious()`)](#copy-from-last-time-copyfromprevious)
   - [Undo (`undo()`)](#undo-undo)
   - [Paste from a spreadsheet (`spreadsheetPaste()`)](#paste-from-a-spreadsheet-spreadsheetpaste)
+  - [Paste to fill (`smartPaste()`)](#paste-to-fill-smartpaste)
+- [Editing on the view page (`warpEditable()`)](#editing-on-the-view-page-warpeditable)
 - [Multi-tenancy](#multi-tenancy)
 - [Testing](#testing)
 - [Commands](#commands)
@@ -102,15 +107,20 @@ Filament already has a great `TextInput`, `Select` and `Textarea`. Warp Input ad
 | Quantities with − / + buttons, units and pack sizes; % or amount discounts; star ratings | [`NumberInput`](#numbers-and-quantities), [`DiscountInput`](#discounts-and-fees), [`RatingInput`](#ratings) |
 | *Price × quantity* filled in by itself, and checked again on the server | [`->calculate()`](#calculated-fields) |
 | Records found by initials, by reading (kana, romaji) or by code, and added without a modal | [`RecordSelect`](#choosing-a-record) |
+| Similar products told apart by code, price and stock in a table inside the list | [`RecordSelect::columns()`](#a-table-in-the-list-columns) |
+| Many items chosen from hundreds, moved between two lists and put in order | [`PickList`](#choosing-many-from-two-lists) |
 | Suggestions from what was typed before, recently used first | [`SuggestInput`](#suggestions-while-typing) |
 | Character counters that count emoji as one, full-width as two, bytes or text messages | [`WarpTextInput`, `WarpTextarea`](#text-fields) |
 | Half-width / full-width / kana clean-up, furigana from the IME, saved replies and merge tags | [`WarpTextInput`, `WarpTextarea`](#text-fields) |
+| *@Aiko* and *#SO-1042* in notes, with a notification for the people mentioned | [`MentionTextarea`](#mentions), `MentionEntry` |
 | Password strength, rules ticked off as you type, and a generate button | [`PasswordInput`](#password) |
 | IBAN, VAT, Japanese invoice and corporate numbers, EAN/ISBN, postal codes, card numbers | [`IdInput`](#ids-and-numbers), `IdColumn` |
 | *INV-2026-0042*, never twice, even when two people save at once | [`SequenceInput`](#numbers-in-order) |
 | `****-1234` until someone allowed to see it clicks | [`->masked()`](#hiding-numbers), `MaskedColumn` |
 | Signatures, name stamps (hanko), barcodes and QR codes, text from a photo, dictation | [`SignaturePad`](#signatures), [`StampInput`](#name-stamps-hanko), [`->scan()`](#barcode-and-qr-scanning), [`->scanText()`](#text-from-a-photo-ocr), [`->dictation()`](#dictation) |
 | Drafts that survive a closed tab, *someone else saved first*, Enter to the next field, undo, paste from Excel | [`FormAssist`](#form-helpers) |
+| An order email pasted once, and the form fills itself in (AI) | [`FormAssist::smartPaste()`](#paste-to-fill-smartpaste) |
+| A phone number fixed right on the view page: click, type, Enter | [`TextEntry::warpEditable()`](#editing-on-the-view-page-warpeditable) |
 
 Every field:
 
@@ -119,7 +129,7 @@ Every field:
 - **comes with its table column and infolist entry** where that makes sense, and a validation rule you can use outside forms.
 - **loads only its own JavaScript, only on pages that use it.** A page with an email field loads 5 KB, not the phone number data or the map.
 - **speaks ten languages** (English, Japanese, German, French, Spanish, Italian, Brazilian Portuguese, Korean, simplified and traditional Chinese), with numbers, money and country names written the way each language writes them.
-- **works without API keys.** Postal codes, address formats, phone data and disposable-email lists ship with the package or are imported once. Online lookups (VIES, address suggestions, exchange rates) are optional.
+- **works without API keys.** Postal codes, address formats, phone data and disposable-email lists ship with the package or are imported once. Online lookups (VIES, address suggestions, exchange rates) and *Paste to fill* (which needs an Anthropic key) are optional.
 
 ## Installation
 
@@ -1162,6 +1172,77 @@ RecordSelect::make('customer_id')
 
 **Showing the chosen record in a table.** Filament's `TextColumn` is enough: `TextColumn::make('customer.name')`, or `TextColumn::make('product.sku')->description(fn ($record) => $record->product?->name)` for a code and a name. There is no separate column class.
 
+### A table in the list (`columns()`)
+
+When names look alike (*Hex nut M8*, *Hex nut M8 stainless*, *Hex nut M8 (100)*), people need the code, the price or the stock to pick the right one. `columns()` turns the list into a small table with a heading over each column. Only the list changes: the field still saves the key.
+
+```php
+use Qalainau\FilamentWarpInput\Forms\Components\OptionColumn;
+use Qalainau\FilamentWarpInput\Forms\RecordSelect;
+
+RecordSelect::make('product_id')
+    ->relationship('product', 'name')
+    ->columns([
+        'sku' => 'Code',
+        'name' => 'Name',
+        OptionColumn::make('price')->label('Price')->money('USD'),
+        OptionColumn::make('stock')->label('In stock')->numeric(),
+    ])
+```
+
+Each entry is either `'column' => 'Heading'` or an `OptionColumn`. Dot notation reads relationships (`'supplier.name'`); load them with `modifyQueryUsing` (`->relationship('product', 'name', fn ($query) => $query->with('supplier'))`) so each row doesn't run a query.
+
+| `OptionColumn` method | What it does |
+| --- | --- |
+| `label(string $label)` | The heading. Without it, the column name as words (`unit_price` → *Unit price*). |
+| `money(?string $currency = null, bool $storedAsMinorUnits = false, ?string $currencyColumn = null)` | Format like `MoneyColumn`: the currency's digits and symbol in the user's language (`$1,234.50`, `1.234,50 €`, `￥1,235`). Without a currency: the `$currencyColumn` of the row, then the panel's `currency()`. |
+| `numeric(?int $decimals = null)` | Group digits the way the user's language does (`12,500` or `12.500`). |
+| `formatStateUsing(Closure $callback)` | Your own text: `fn (mixed $state, Model $record): string`. |
+| `alignEnd(bool $condition = true)` | Right-align the column. Money and numbers are right-aligned by default. |
+
+Search still uses the name, the code (`codeAttribute()`), the reading and `searchable([...])`; add a column there to search it too. The cells are sent as text and escaped in the browser. The list gets wider when there are more than two columns (up to the width of the screen). `columns()` with only numbers (`['md' => 2]`) is still Filament's grid columns.
+
+## Choosing many from two lists
+
+`PickList` is for choosing many items out of a long list: the customers a sales rep looks after, the regions a carrier serves, the permissions of a role. The left list shows what can still be chosen, the right list what was chosen. A `Select` with `multiple()` gets hard to read after a dozen badges; two lists stay readable with a hundred.
+
+```php
+use Qalainau\FilamentWarpInput\Forms\PickList;
+
+PickList::make('regions')
+    ->options(['ne' => 'New England', 'ma' => 'Mid-Atlantic', 'se' => 'Southeast', /* ... */])
+    ->reorderable()
+
+PickList::make('customers')
+    ->relationship('customers', 'name')     // BelongsToMany
+    ->codeAttribute('code')                 // C-1001 Harbor Supply Co.
+    ->reorderable(pivotColumn: 'sort')      // the order goes into the pivot table
+```
+
+- **Moving.** Double-click an item, press the › ‹ buttons (» « move every item shown), drag it to the other list, or press Enter in a list. Click to highlight, Ctrl/⌘-click to add to the highlight, Shift-click for a range, Ctrl/⌘+A for all.
+- **Searching.** Each list has its own search: name and code, any word, ignoring case and full-width letters.
+- **Order.** With `reorderable()`, drag items inside the right list, or highlight them and press ˄ ˅ (or Alt+↑ / Alt+↓). Each item shows its position. The saved array is in that order.
+- **Many records.** With `relationship()`, when there are more than `serverSearchAbove()` records (300 by default), the browser does not get them all: the left list shows the first `optionsLimit()` (50) by name, and typing searches on the server the way `RecordSelect` does (initials, reading with `searchReading()`, code).
+- **Keyboard and screen readers.** Both lists are `listbox`es with `aria-multiselectable`; ↑ ↓ Home End move, Space highlights, Enter moves; every move is announced.
+
+| Method | What it does |
+| --- | --- |
+| `options(array\|Closure $options)` | The choices, as in `Select`. Grouped options are listed without their groups. |
+| `relationship(string $name, string $titleAttribute, ?Closure $modifyQueryUsing = null)` | Choose related records (usually `BelongsToMany`). Saved and loaded as `Select` does. |
+| `reorderable(bool $condition = true, ?string $pivotColumn = null)` | Let people order the right list. With `$pivotColumn`, a number column of the pivot table gets 1, 2, 3… on save, and the list opens in that order. |
+| `serverSearchAbove(int $count)` | Above this many related records, search on the server instead of sending them all to the browser. Default 300. |
+| `optionsLimit(int $limit)` | How many records the left list shows when searching on the server. Default 50. |
+| `maxItems(int $count)` | At most this many on the right. *Add all* stops there, and the count reads “3 of 3”. Checked on the server too. |
+| `listLabels(?string $available, ?string $selected)` | The headings of the two lists (default *Available* and *Selected*). |
+| `listHeight(string $height)` | The height of the lists (`'20rem'`). Default `16rem`; on a phone the lists are stacked and lower. |
+| `codeAttribute()`, `searchReading()`, `searchInitials()`, `searchable([...])` | As in [`RecordSelect`](#choosing-a-record). |
+
+**What is saved.** The same as `Select` with `multiple()`: an array of keys (cast the column to `array` or use a JSON column), or the rows of a `BelongsToMany` relationship. With `reorderable(pivotColumn: 'sort')`, add the column to your pivot table and to the relationship: `->withPivot('sort')`. The plugin adds no table.
+
+**Checked on the server.** Keys that are not among the options (or that the relationship's query can't find, which keeps other teams' records out) fail validation, as in `Select`; so does going over `maxItems()`.
+
+**Existing data.** `PickList` reads and writes the same values as `Select::multiple()`, so you can swap one for the other on an existing column.
+
 ## Suggestions while typing
 
 `SuggestInput` is a `TextInput` that suggests values while people type, but — unlike a select — anything else can be typed too. Good for cities, carriers, job titles, tags of free text.
@@ -1457,6 +1538,44 @@ TextColumn::make('reply')->limit(50)->tooltip(fn ($record) => MergeTags::render(
 ### Adding your own helpers to the text fields
 
 `WarpTextInput` and `WarpTextarea` call `setUp<TraitName>()` and `wrap<TraitName>(string $html): string` for every trait they use, like Eloquent's `boot<TraitName>()`. A trait can set up rules in `setUp…()` and wrap the field in its own browser component in `wrap…()`.
+
+## Mentions
+
+`MentionTextarea` is a textarea where `@` suggests people and `#` suggests records (an order, a customer) while typing. Choosing one writes *@Aiko Tanaka* into the text. After the record is saved, the people who were newly mentioned are passed to `onMention()`, so you can notify them. `MentionEntry` shows the saved text with the mentions marked, and links them if you want.
+
+```php
+use App\Models\Order;
+use App\Notifications\MentionedInNote;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Notification;
+use Qalainau\FilamentWarpInput\Forms\MentionTextarea;
+use Qalainau\FilamentWarpInput\Infolists\MentionEntry;
+
+MentionTextarea::make('note')
+    ->mentionUsers()                                         // @ → users of the app (of the current team)
+    ->mentions('#', Order::class, 'number')                  // # → orders by number
+    ->onMention(fn (Collection $users, Model $record) => Notification::send($users, new MentionedInNote($record)))
+
+MentionEntry::make('note')
+    ->mentionUrl(fn (string $trigger, string $key) => $trigger === '#' ? OrderResource::getUrl('view', ['record' => $key]) : null)
+```
+
+**What is saved.** Text, in your own column: `Ask @[Aiko Tanaka](12) about #[SO-1042](981).` Each mention is the mark, the name in `[ ]` and the key in `( )`. Everything else is the text as typed, so notes written before you switched to `MentionTextarea` read as they are. While editing, the field shows *@Aiko Tanaka*; if someone changes a letter of the name, it becomes plain text. Use `Mentions::toPlainText($text)` for e-mails and table columns, `Mentions::keys($text, '@')` for the keys.
+
+| Method | What it does |
+| --- | --- |
+| `mentionUsers(?Closure $modifyQueryUsing = null, string $titleAttribute = 'name', string $trigger = '@')` | Mention the app's users (`auth.providers.users.model`). |
+| `mentions(string $trigger, string $model, string $titleAttribute, ?Closure $modifyQueryUsing = null, ?string $codeAttribute = null)` | Mention records of `$model` after `$trigger` (`@`, `#`, `+` or `!`). `$modifyQueryUsing` gets `(Builder $query, string $search)` and limits who or what can be mentioned. `$codeAttribute` is shown and searched too (an order number). |
+| `onMention(Closure $callback)` | Called once the save is final, with the newly mentioned records: `$users` (from `mentionUsers()`), `$mentions` (a collection keyed by mark), `$record`, `$state`. People who were already mentioned before this save are not passed again. |
+| `mentionLimit(int $limit)` | How many suggestions are shown (default 8). |
+| `MentionEntry::mentionUrl(Closure $callback)` | A link for each mention: `fn (string $trigger, string $key, string $label): ?string`. Only `http(s)://` and `/…` links are made. |
+
+**Checked on the server.** Before saving, each mention is looked up with the same query as the suggestions; mentions of records that don't exist, can't be mentioned or were typed into the browser by hand become plain text (*@Ghost*). Names are refreshed to the current name.
+
+**Teams.** With Filament tenancy and no `$modifyQueryUsing`, users are limited to the current team (through the tenant relationship, or `canAccessTenant()` when the users belong to teams through a many-to-many relationship). Other records are limited through their tenant relationship; a model that has none can't be mentioned in a tenant panel unless you pass `$modifyQueryUsing`, so other teams' records are never suggested.
+
+**When is `onMention()` called.** In Filament's create and edit pages, and in your own pages that call `$this->form->model($record)->saveRelationships()` after saving. It runs after the database transaction commits; if the save is rolled back, nobody is notified.
 
 ## IDs and numbers
 
@@ -1968,7 +2087,8 @@ public static function form(Schema $schema): Schema
             ->requiredSummary()                                     // "3 required fields are still empty: Customer · Due date · Phone"
             ->copyFromPrevious(['category', 'warehouse', 'tax_rate']) // "Copy from my last order"
             ->undo()                                                // Ctrl/Cmd+Z for the whole form
-            ->spreadsheetPaste(),                                   // paste rows from Excel into the fields
+            ->spreadsheetPaste()                                    // paste rows from Excel into the fields
+            ->smartPaste(),                                         // paste an order email: AI fills in the fields
 
         // ... your fields
     ]);
@@ -2092,6 +2212,88 @@ Each cell is turned into the field's value on the server:
 | Anything else | The text, trimmed |
 
 An empty cell leaves its field as it is. A cell that doesn't fit (no such option, not a number) is crossed out in the preview and its field is left as it is. Hidden, disabled and read-only fields, passwords and file uploads are skipped; so are cells beyond the last field. `afterStateUpdated()` runs for every filled field, so totals update. If another component already handled the paste (Warp Repeater's spreadsheet mode), `FormAssist` leaves it alone.
+
+### Paste to fill (`smartPaste()`)
+
+People retype order emails, business cards and quote requests into forms all day. With `smartPaste()`, *Paste to fill* appears above the form: paste the text, press *Fill in the fields*, and the fields the text mentions are filled in and marked **AI** until someone changes them. Line items in the text become rows of a repeater.
+
+```php
+FormAssist::make()->smartPaste()
+```
+
+```php
+// config/services.php (the same key as Warp Import's AI suggestions)
+'anthropic' => [
+    'key' => env('ANTHROPIC_API_KEY'),
+],
+```
+
+Without a key (and without `using`), the button is not shown.
+
+- **The answer goes through your fields.** Claude returns text for each field, and each field turns it into its value the same way as [pasting from a spreadsheet](#paste-from-a-spreadsheet-spreadsheetpaste): a choice is found by its label, numbers and dates are read, `PhoneInput` formats the number for the country, `MoneyInput` writes the amount in the user's format, and `EmailInput`, `UrlInput` and the address fields check the value when the form is saved, as when it is typed. A value that doesn't fit (no such option, not a number or a date) is left out.
+- **Line items.** For each repeater at the top level of the form (Filament's `Repeater`, `Repeater::table()`, Warp Repeater), the items listed in the text become rows: empty rows are filled first, then rows are added up to `maxItems()`.
+- **Checked by people.** Nothing is saved: the fields are only filled in, marked **AI**, and saved when the user saves. `afterStateUpdated()` runs for every filled field, so totals update.
+- **Never sent.** Passwords, card numbers (`autocomplete="cc-…"`), masked IDs, `SequenceInput`, signatures, stamps, file uploads, hidden and disabled fields, and the fields you list in `except`.
+
+| Argument | Default | |
+| --- | --- | --- |
+| `$condition` | `true` | A bool or closure: who sees the button. |
+| `model` | `'claude-haiku-5-5'` | The Claude model. Haiku is fast and costs little; for long or messy text, try `'claude-sonnet-5-5'` or `'claude-opus-5-5'`. |
+| `using` | `null` | A class implementing `Qalainau\FilamentWarpInput\Ai\FillsForms`, to use another service or your own rules. |
+| `except` | `[]` | Field names (or state paths) that are never sent and never filled. |
+
+**Privacy.** When the user presses *Fill in the fields*, the pasted text, the labels and placeholders of the fields (and the labels of up to 100 options of each choice field), today's date, the panel's country and currency are sent to Anthropic — never on their own. The values already in the form are not sent. The dialog says so under the text box. Leave the feature off, or use `using` with a service you run, for data that must not leave your servers.
+
+**Limits.** Up to 10,000 characters per paste, and 20 tries a minute per user. If the key is missing or Claude does not answer, the user sees a short message and fills in the fields by hand.
+
+```php
+use Qalainau\FilamentWarpInput\Ai\FillsForms;
+
+class OwnFiller implements FillsForms
+{
+    public function fill(string $text, array $fields, array $repeaters, array $context): array
+    {
+        // $fields: [['id' => 'f1', 'label' => 'Email', 'type' => 'email address', 'required' => true], ...]
+        // $repeaters: [['id' => 'r2', 'label' => 'Lines', 'columns' => [['id' => 'c1', 'label' => 'Product', ...], ...]]]
+        // $context: ['today' => '2026-11-13', 'timezone' => 'UTC', 'locale' => 'en', 'country' => 'US', 'currency' => 'USD']
+        return [
+            'fields' => ['f1' => 'buyer@harbor.example'],
+            'rows' => ['r2' => [['c1' => 'Hex nut', 'c2' => '200']]],
+        ];
+    }
+}
+
+FormAssist::make()->smartPaste(using: OwnFiller::class)
+```
+
+Throw a `RuntimeException` with a message for the user when the service fails.
+
+## Editing on the view page (`warpEditable()`)
+
+On a view page, fixing one phone number means: *Edit*, find the field, change it, *Save*, back. With `warpEditable()`, a `TextEntry` (or any entry that extends it: `PhoneEntry`, `MoneyEntry`…) shows a pencil; clicking it — or the value — opens the field right there. **Enter** saves, **Esc** cancels.
+
+```php
+use Filament\Infolists\Components\TextEntry;
+use Qalainau\FilamentWarpInput\Forms\EmailInput;
+use Qalainau\FilamentWarpInput\Forms\PhoneInput;
+use Qalainau\FilamentWarpInput\Infolists\PhoneEntry;
+
+PhoneEntry::make('phone')->warpEditable(PhoneInput::make('phone')->defaultCountry('US'))
+TextEntry::make('email')->warpEditable(EmailInput::make('email')->required())
+```
+
+- **The real field.** The entry opens the field you pass, with its formatting, rules and server checks: the same as on the edit page. Only that field's value is saved to the record (`fill()` and `save()`, then its relationships); other values sent from the browser are ignored.
+- **Permission.** The pencil shows only when the user may `update` the record (the model's policy; without a policy, everyone, as in Filament). It is checked again on the server for every save. Pass `authorize: fn (Model $record) => …` to decide yourself.
+- **Someone else saved first.** When the record's `updated_at` changed after the field was opened, the save stops with a message and *Show the latest value*, as `FormAssist::conflicts()` does. For a model without timestamps, the edited column itself is compared. Pass `conflictColumn: 'version'` for another column, or `false` to turn it off.
+- **Keyboard.** Enter saves (Ctrl/⌘+Enter in a textarea; Enter in an open list chooses in the list), Esc cancels, and the focus goes back to the pencil. A value that is a link (a phone number to call, `->url()`) opens with the pencil only.
+
+| Argument | Default | |
+| --- | --- | --- |
+| `$field` | | The form field to edit with (any Filament or Warp Input field; its name is the column). |
+| `authorize` | `null` | `fn (Model $record): bool`. Without it: the policy's `update`. |
+| `conflictColumn` | `'updated_at'` | The column that tells whether someone else saved. `false` turns the check off. |
+
+**Where the value lives while editing.** In a public array of the Livewire component: `$data` on Filament's view and edit pages, so nothing is needed there. On your own Livewire component or page without `$data`, add the trait `Qalainau\FilamentWarpInput\Infolists\Editable\InteractsWithEditableEntries`. Entries inside a `RepeatableEntry` can't be edited in place.
 
 ## Multi-tenancy
 

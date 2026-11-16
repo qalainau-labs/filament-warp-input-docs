@@ -2,6 +2,13 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [1.1.2] - 2026-11-16
+
+### Fixed
+
+- **Static analysis**: Larastan no longer reports “Call to an undefined method” for `TextEntry::warpEditable()`. The plugin ships `extension.neon`, a PHPStan extension that reads Filament's macros (loaded automatically with `phpstan/extension-installer`; otherwise add it to `includes`). See “Static analysis” in the README.
+- **Static analysis**: the setting methods of the plugin class are declared as returning the plugin, so `$panel->plugin(…::make()->…())` no longer fails with “Panel::plugin() expects Filament\Contracts\Plugin”.
+
 ## [1.1.1] - 2026-11-13
 
 ### Fixed

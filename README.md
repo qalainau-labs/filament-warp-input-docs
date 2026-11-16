@@ -2388,6 +2388,21 @@ Warp Input ships or uses data and code from these projects, under their licenses
 - Disposable email domains: [disposable-email-domains](https://github.com/disposable-email-domains/disposable-email-domains) (CC0). Social network logos: [Simple Icons](https://simpleicons.org/) (CC0).
 - Barcode scanning: [ZXing](https://github.com/zxing-js/library) (Apache-2.0), loaded only when the browser has no barcode reader of its own. Text from photos: [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), loaded only when someone presses the button.
 
+## Static analysis (PHPStan / Larastan)
+The methods this plugin adds to Filament's components with `macro()` (`TextEntry::warpEditable()`) are not declared on the classes, so Larastan reports “Call to an undefined method” for them. The plugin ships a PHPStan extension that tells PHPStan about them, with their real parameters and return types:
+
+- With [`phpstan/extension-installer`](https://github.com/phpstan/extension-installer), there is nothing to do.
+- Without it, add the file to your `phpstan.neon`:
+
+```neon
+includes:
+    - vendor/qalainau/filament-warp-input/extension.neon
+```
+
+The extension reads the macros that are registered when Larastan boots your app, so it needs [Larastan](https://github.com/larastan/larastan) (plain PHPStan does not boot the app). It also covers the macros your own app adds to Filament components.
+
+The setting methods of the plugin class return the plugin, so `$panel->plugin(FilamentWarpInputPlugin::make()->country('JP'))` passes analysis as it is (no “expects Filament\Contracts\Plugin” error).
+
 ## Support
 
 Questions before or after buying: [warpui.com/support](https://warpui.com/support?plugin=input).

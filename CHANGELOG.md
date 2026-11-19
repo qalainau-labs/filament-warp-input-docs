@@ -2,6 +2,12 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [1.1.3] - 2026-11-20
+
+### Fixed
+
+- **Console error `warpInputMoney is not defined`**: on pages where Livewire re-renders an Input field inside another Alpine component, the browser console could show `warpInputMoney is not defined` before the component's script had arrived. Empty components are now registered up front, and the real ones replace them as soon as they load. No visible change.
+
 ## [1.1.2] - 2026-11-16
 
 ### Fixed

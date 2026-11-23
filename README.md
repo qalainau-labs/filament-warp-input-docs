@@ -52,6 +52,7 @@ Type a customer's address from the ZIP code, paste a phone number from an email,
   - [Saved replies (templates)](#saved-replies-templates)
   - [Merge tags](#merge-tags)
   - [Word and personal data warnings](#word-and-personal-data-warnings)
+  - [Rewrite with AI](#rewrite-with-ai)
   - [Password](#password)
   - [Methods](#methods)
   - [Validation rules](#validation-rules-1)
@@ -69,6 +70,7 @@ Type a customer's address from the ZIP code, paste a phone number from an email,
   - [Table column and infolist entry](#table-column-and-infolist-entry)
 - [Name stamps (hanko)](#name-stamps-hanko)
 - [Barcode and QR scanning](#barcode-and-qr-scanning)
+- [Showing barcodes and QR codes](#showing-barcodes-and-qr-codes)
   - [Keep scanning into a repeater](#keep-scanning-into-a-repeater)
   - [Add scanning to your own fields](#add-scanning-to-your-own-fields)
 - [Text from a photo (OCR)](#text-from-a-photo-ocr)
@@ -698,6 +700,41 @@ FilamentWarpInputPlugin::make()
 
 Requests go from your server with your app's name as the User-Agent, at most one every half second per server, as the services ask. Photon's public server is free for reasonable use; for heavy use, pass your own server: `->addressSuggestions(new Photon('https://photon.example.com'))`. Nominatim's public server does not allow suggestions while typing, so only use `new Nominatim('https://your-nominatim')` here with your own server.
 
+For a commercial provider, configure credentials in your application's `config/services.php` (keep the environment values on the server):
+
+```php
+'google_places' => ['key' => env('GOOGLE_PLACES_KEY')],
+'mapbox' => ['token' => env('MAPBOX_TOKEN')],
+```
+
+Choose one on the panel:
+
+```php
+use Qalainau\FilamentWarpInput\Support\Addresses\Drivers\GooglePlaces;
+use Qalainau\FilamentWarpInput\Support\Addresses\Drivers\Mapbox;
+
+FilamentWarpInputPlugin::make()
+    ->addressSuggestions(new GooglePlaces(key: (string) config('services.google_places.key')))
+    ->geocoder(new GooglePlaces(key: (string) config('services.google_places.key'))); // optional map search and reverse lookup
+
+// Or use Mapbox for suggestions and map lookup, including reverse lookup:
+FilamentWarpInputPlugin::make()
+    ->addressSuggestions(new Mapbox(token: (string) config('services.mapbox.token')))
+    ->geocoder(new Mapbox(token: (string) config('services.mapbox.token')));
+```
+
+Both drivers use Laravel's HTTP client with a five-second timeout and a three-second connection timeout and return no candidates when the service fails. With an empty credential they make no request, write one warning per lookup without credentials or addresses, and leave manual entry available. Neither driver caches provider responses or changes the default provider. Language follows the requested locale (`pt_BR` becomes `pt-BR`), and suggestions are restricted to the selected country.
+
+Google uses one [Text Search (New)](https://developers.google.com/maps/documentation/places/web-service/text-search) request per driver search (`POST https://places.googleapis.com/v1/places:searchText`). The field mask is exactly `places.formattedAddress,places.addressComponents,places.location`: the response supplies all candidates and their coordinates, with no Autocomplete, Place Details or session token. These fields use the **Text Search Pro** SKU, avoiding the higher Enterprise tiers; they are not the free ID-only SKU. See Google's [field and SKU list](https://developers.google.com/maps/documentation/places/web-service/data-fields) and current pricing before enabling it. `languageCode` follows the locale, `regionCode` follows the selected country, and `pageSize` follows the requested limit (at most 20; the suggestion field asks for 5). Since `regionCode` is not a strict country filter, the driver also discards results whose country component does not match.
+
+The suggestion field waits **300 ms** after typing pauses (debounce), requires **at least 3 characters** on both the browser and server, and skips a repeated unchanged query in the browser. Each driver search is billed separately. When city/postal-code context is present and produces no candidates, the existing field retries once with the typed words alone, so that interaction can send two Text Search requests. The debounce reduces calls while typing; it does not make later searches free.
+
+Enable **Places API (New)** on the Google Cloud project for search. With `->geocoder(new GooglePlaces(key: ...))`, map clicks also use the [Geocoding API](https://developers.google.com/maps/documentation/geocoding/requests-reverse-geocoding) (`GET https://maps.googleapis.com/maps/api/geocode/json?latlng=…`) with the same key; enable **Geocoding API** and allow it in the key's API restrictions too. Reverse lookup is a separate billed request and returns no address on failure. Review Google's [usage and attribution policies](https://developers.google.com/maps/documentation/places/web-service/policies); provide the required Google attribution in your application and use results according to its display and storage terms.
+
+Mapbox uses [Geocoding v6](https://docs.mapbox.com/api/search/geocoding/) because it returns full addresses and coordinates in one request and supports permanent results suitable for saved address forms. The Search Box API has different retrieval and storage rules. `new Mapbox(token: $token)` sends `permanent=true`; your Mapbox account must be eligible for permanent geocoding (a payment method or enterprise contract is required). For temporary display only, use `new Mapbox(token: $token, permanent: false)` and follow Mapbox's storage restrictions. Requests while typing are billed individually; check Mapbox's current pricing and attribution requirements.
+
+Enabling either provider sends the typed address, any city/postal-code context already entered, the selected country and the requested language from your server to that provider. Google and Mapbox reverse lookup also send the clicked coordinates. Account for this transfer in your application's privacy notice. The development app's Addresses page contains separate Google and Mapbox search examples; they stay empty until their server credentials are configured.
+
 ### Pin on a map
 
 `->map()` adds a map below the address (Leaflet with OpenStreetMap tiles, no key). Click the map to drop a pin, drag the pin to move it. The position is saved in `latitude` and `longitude`, the same columns [Warp Map](https://warpui.com)'s `HasLocation` reads, so the customer shows up on your Warp Map right away.
@@ -980,6 +1017,33 @@ NumberInput::make('bags')->packSize(10, PackSizeRounding::Warn)   // only a warn
 
 Saved values are numbers: an `int` for whole numbers and a `float` otherwise.
 
+## Durations
+
+`DurationInput` reads a length of time and saves **integer minutes**. It accepts `1:30`, `1.5h`, `1,5h`, `90m`, `90min`, `1h 30m`, `1h30`, full-width digits and colons, and Japanese forms such as `1時間30分`, `90分` and `1.5時間`.
+
+```php
+use Qalainau\FilamentWarpInput\Forms\DurationInput;
+use Qalainau\FilamentWarpInput\Tables\DurationColumn;
+use Qalainau\FilamentWarpInput\Infolists\DurationEntry;
+use Qalainau\FilamentWarpInput\Tables\Summarizers\DurationSum;
+
+DurationInput::make('elapsed')->roundTo(15)->minMinutes(30)->maxMinutes(480);
+DurationInput::make('minutes')->plainNumbersAs('minutes')->displayFormat('short');
+DurationColumn::make('elapsed')->summarize(DurationSum::make());
+DurationEntry::make('elapsed')->displayFormat('short');
+```
+
+| Method | What it does |
+| --- | --- |
+| `plainNumbersAs(string $unit)` | Bare numbers mean `'hours'` by default (`2` saves `120`). Choose `'minutes'` to save `2`. |
+| `roundTo(?int $minutes)` | Round to the nearest positive interval before saving; ties round up. `null` (default) disables interval rounding. |
+| `minMinutes(?int $minutes)` / `maxMinutes(?int $minutes)` | Validate the resulting minutes on the server, after rounding. `null` removes a limit. |
+| `displayFormat(string $format)` | `'clock'` (default: `1:30`) or `'short'` (`1h 30m`, Japanese `1時間30分`). Also available on `DurationColumn` and `DurationEntry`; `DurationSum` follows its column. |
+
+The development app's **Fields → Durations** page demonstrates the default field, `plainNumbersAs('minutes')->roundTo(15)`, and short display with a 15–600 minute limit. For nearest-15-minute rounding, `1:07` (67 minutes) and a bare `65` in the minutes field both become `1:00` and save `60`. **Quotes (money)** includes a duration editor, a duration column and its sum.
+
+Use an integer or bigint database column for minutes. Loading a saved `90` shows `1:30`; entering a bare `90` means 90 hours unless `plainNumbersAs('minutes')` is set. Fractional minutes round to whole minutes, with halves rounded up. The minute part of a clock or a compound duration must be 0–59. Negative values and values beyond JavaScript's safe integer range are refused. Unreadable text stays in the field with an example message and fails server validation. The server reads the text again before saving, including when JavaScript is disabled. After a validation error, you can correct the text and immediately click the form action; `getState()` returns integer minutes (for example, `1:30` becomes `90`). The preview hides on blur while retaining its space so nearby buttons stay in place.
+
 ## Discounts and fees
 
 `DiscountInput` takes either a percentage or an amount. Switch with the `%` / `$` buttons on the right (the typed value is converted), or simply type `10%`. Under the field the other side appears: *"= $41.10"* or *"= 10% of $411.00"*.
@@ -1118,6 +1182,69 @@ use Qalainau\FilamentWarpInput\Rules\Money;
 
 'amount' => ['required', new Money(currency: 'JPY', min: 0)]   // a number with at most the currency's decimals
 ```
+
+## Editing values in table rows
+
+Use the input columns to edit a value and save when leaving its field. Existing `MoneyColumn` and `PhoneColumn` keep their read-only display.
+
+```php
+use Qalainau\FilamentWarpInput\Tables\MoneyInputColumn;
+use Qalainau\FilamentWarpInput\Tables\NumberInputColumn;
+use Qalainau\FilamentWarpInput\Tables\PhoneInputColumn;
+
+MoneyInputColumn::make('amount')->currency('USD')->rules(['required', 'numeric', 'min:0']),
+MoneyInputColumn::make('amount_cents')->currencyColumn('currency')->storeAsMinorUnits(),
+NumberInputColumn::make('weight')->decimals(2)->step(0.5)->suffix('kg')
+    ->minValue(0)->maxValue(2000),
+PhoneInputColumn::make('phone')->defaultCountry('JP'),
+```
+
+| Method | Purpose |
+| --- | --- |
+| `currency(string or Closure)` / `currencyColumn(?string)` | Fix a currency or read it from each record; otherwise use the panel currency. |
+| `storeAsMinorUnits(bool or Closure = true)` | Store integer minor units instead of the default decimal string, as with `MoneyInput`. |
+| `rounding(Rounding or Closure or null)` | Choose money rounding; defaults to the panel setting. |
+| `decimals(int or Closure or null)` | Round numbers to this many decimal places; default is no fixed precision. |
+| `step(number or Closure or null)`, `suffix(label)`, `minValue(number or Closure or null)`, `maxValue(number or Closure or null)` | Configure number increments, units and server bounds. |
+| `defaultCountry(string or Closure or null)` | Interpret national phone numbers; defaults to the panel country. |
+| `storeAs(PhoneFormat or Closure)` | Choose phone storage; defaults to E.164, including extensions as with `PhoneInput`. |
+
+These extend Filament's `TextInputColumn`, including `rules()`, `disabled()`, `beforeStateUpdated()` and `afterStateUpdated()`. Every submission is checked again on the server using the corresponding input rules; invalid values are rejected, a Filament danger notification explains the validation rule, and the persisted display is restored with the validation message below the input. Numbers keep `NumberInput`'s numeric storage; money keeps `MoneyInput`'s decimal string or opted-in minor units. Fields show ungrouped digits while focused and formatted values after saving. Phone numbers display as in `PhoneColumn`. A successful correction clears the previous error. A connection failure uses the save-confirmation warning. Filtering, sorting and pagination can replace rows without leaving active editors behind.
+
+As with Filament's editable columns, the record's `update` policy is **not checked automatically**. Restrict editing explicitly on each column:
+
+```php
+->disabled(fn ($record) => ! auth()->user()->can('update', $record))
+```
+
+The table query remains responsible for tenant scoping. The standard `updateTableColumnState` endpoint resolves records through that query. Numeric inputs are limited to finite, safely representable values and submissions to 200 characters. Custom rules receive normalized numbers, matching the form fields: `numeric`, `min` and `max` check the parsed amount, even with `storeAsMinorUnits()`. Use `rules(['integer'])` on a `NumberInputColumn` to refuse fractions. Selecting a formatted amount and typing replaces the selected digits when focus removes the grouping separators.
+
+## Range filters
+
+Filter numeric or money columns using inclusive lower and upper bounds. Leave either field empty for an open end; reversed bounds are swapped. Filters only affect tables where they are explicitly registered.
+
+```php
+use Qalainau\FilamentWarpInput\Tables\Filters\MoneyRangeFilter;
+use Qalainau\FilamentWarpInput\Tables\Filters\NumberRangeFilter;
+
+$table->filters([
+    MoneyRangeFilter::make('total')->currency('JPY'),
+    MoneyRangeFilter::make('price')->column('amount_cents')
+        ->currency('USD')->storedAsMinorUnits(),
+    NumberRangeFilter::make('quantity')->step(0.5)->suffix('kg'),
+]);
+```
+
+| Method | What it does |
+| --- | --- |
+| `column(?string $column)` | Database column to compare. Default: the filter's name. |
+| `currency(string\|Closure\|null $currency)` | Money filter currency. Default: the panel's Warp Input currency. Fields use `MoneyInput`, including its currency symbol and locale-aware parsing. |
+| `storedAsMinorUnits(bool\|Closure $condition = true)` | Money filter only: convert typed currency amounts to integers for a column saved with `MoneyInput::storeAsMinorUnits()`. The name matches `MoneyColumn`. Default: decimal amounts. |
+| `step(int\|float\|string\|null $step)` / `suffix(?string $suffix)` | Number filter input step and unit label. |
+
+Use `label()` for the filter heading and the indicator's column name. The From and To fields sit below the heading, side by side on wide screens and stacked on narrow screens. Indicators show a range or a translated “or more” / “or less” message. Text that cannot be read as a number, arrays, booleans and excessive values are ignored independently for each bound. Money bounds use the currency's precision and the panel's rounding setting. Enter major currency units even when filtering an integer minor-unit column. Comparisons use `>=` and `<=` on numeric database columns; no raw user text is interpolated into SQL. These filters keep any existing query scopes, including tenant scopes.
+
+Money ranges compare one currency per column. If currencies vary between rows, also filter the currency column or use a separate range for each currency.
 
 ## Choosing a record
 
@@ -1456,6 +1583,71 @@ WarpTextarea::make('note')
 - Words are matched without regard to case or full-width letters. Words made of letters and digits match whole words only (`class` does not match `classic`); other words (`社外秘`) match anywhere.
 - `warnPersonalData()` looks for: email addresses, card numbers (13–19 digits that pass the Luhn check), Japanese My Numbers (12 digits with a valid check digit) and phone numbers (10–15 digits in common formats). Card numbers and My Numbers are masked in the warning (`•••• 1111`). It only warns; nothing is sent to the server.
 
+
+### Rewrite with AI
+
+**欄の文を、設定した AI の会社（既定は Anthropic）に送ります。個人情報が入る欄では使う前に利用者の同意と会社の決まりを確かめてください**
+
+**The text in the field is sent to the configured AI provider (Anthropic by default). Before using this with personal information, check user consent and your organization’s rules.** API calls may incur charges.
+
+`WarpTextInput` and `WarpTextarea` can offer a rewrite menu. Rewriting is **off by default**; it does not change how other fields look or store text. The original and rewritten text are shown side by side before the user chooses **Replace** or **Cancel**. **Undo rewrite** restores the original text; normal form undo also records the replacement when enabled. This fills the field; it does not save the form.
+
+```php
+use Qalainau\FilamentWarpInput\Forms\WarpTextarea;
+use Qalainau\FilamentWarpInput\Forms\WarpTextInput;
+
+WarpTextarea::make('reply')->maxLength(2000)->aiRewrite();
+WarpTextInput::make('subject')->aiRewrite(actions: ['shorten', 'english']);
+WarpTextarea::make('summary')->aiRewrite(actions: ['shorten']); // one click opens the comparison
+WarpTextarea::make('note')->aiRewrite(
+    actions: [
+        'polite',
+        ['label' => __('replies.friendlier'), 'prompt' => 'Use a warm, friendly tone.'],
+    ],
+    freeform: true,
+    authorize: fn () => auth()->user()?->can('use-ai') ?? false,
+    perMinute: 10,
+);
+```
+
+With exactly one action and `freeform: false`, the first button immediately requests a rewrite and opens the comparison. Multiple actions, or `freeform: true`, open the instruction menu with a heading. The draft stays unchanged until **Replace**.
+
+Add the key to your application's `config/services.php` (the plugin reads configuration, never environment variables directly):
+
+```php
+'anthropic' => ['key' => env('ANTHROPIC_API_KEY')],
+```
+
+Set `ANTHROPIC_API_KEY` in your deployment environment. The key stays on the server. Without a key, the default rewrite button is hidden and direct Livewire requests are refused. The default model is the same as smart paste (`AnthropicFormFiller::DEFAULT_MODEL`).
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `condition` | `true` when `aiRewrite()` is called | Boolean or closure to enable the feature for this field |
+| `actions` | `['polite', 'shorten', 'bullets', 'english']` | Which built-in actions to show; custom entries contain `label` and `prompt` |
+| `using` | `AnthropicTextRewriter::class` | A class implementing `Ai\RewritesText`; custom classes do not require an Anthropic key |
+| `freeform` | `false` | Allow a user instruction, up to 500 characters |
+| `authorize` | Field is editable | Closure checked both when rendering and before the server call |
+| `perMinute` | `10` | Requests per user per minute, shared across rewrite fields |
+
+The server accepts only action IDs configured on the field, checks authorization again, and rejects text over the field’s `maxLength()` (10,000 characters if absent). Returned text must fit the same limit. Provider failures show a translated notification. Disabled, read-only and hidden fields cannot request rewriting. A replacement stops if the user has edited the text while waiting.
+
+To use another provider, implement the small interface and pass its class with `using:`. Your implementation receives only the field text and the selected instruction, and returns plain text. Authentication, timeouts and provider errors belong in that implementation; exceptions become a translated failure notice.
+
+```php
+use Qalainau\FilamentWarpInput\Ai\RewritesText;
+
+class MyRewriter implements RewritesText
+{
+    public function rewrite(string $text, string $prompt): string
+    {
+        return app(MyAiClient::class)->rewrite($text, $prompt);
+    }
+}
+
+WarpTextarea::make('reply')->aiRewrite(using: MyRewriter::class);
+```
+
+
 ### Password
 
 `PasswordInput` replaces `TextInput::make('password')->password()`. `password()`, `revealable()` (on by default), `copyable()`, `required()` and `dehydrateStateUsing()` work as in Filament.
@@ -1683,6 +1875,34 @@ IdInput::make('vat_number')
 #### Card numbers
 
 A card field checks the number before it is handed to your payment provider: the Luhn check digit, the brand (shown under the field) and the length. **It does not store the number:** `IdType::CreditCard` makes the field `->dehydrated(false)` unless you call `dehydrated()` yourself, so the number is not in `getState()` and is not saved to the model. A note under the field tells people not to save card numbers. Storing card numbers puts your app under PCI DSS; pass the number to your payment provider's own fields or tokenization instead.
+
+### Additional national and bank identifiers
+
+Use the same `type()` / `idType()` argument on fields, columns and entries, or pass the enum to `new ValidId($type)`:
+
+```php
+IdInput::make('tax_id')->type(IdType::BrCpf);       // 123.456.789-09; saved as 12345678909
+IdInput::make('bank_code')->type(IdType::SwiftBic); // DEUTDEFF; no check digit
+IdColumn::make('tax_id')->idType(IdType::BrCpf);
+```
+
+| Type | Accepted form and checks | Display |
+| --- | --- | --- |
+| `BrCpf` | 11 digits, both mod-11 check digits; repeated identical digits refused | `123.456.789-09` |
+| `BrCnpj` | Numeric 14-digit CNPJ, both mod-11 check digits | `12.345.678/0001-95` |
+| `EsNif` | DNI: 8 digits + letter; NIE: X/Y/Z + 7 digits + letter, mod 23 | Compact uppercase |
+| `EsCif` | Entity letter + 7 digits + check digit/letter, depending on the entity | Compact uppercase |
+| `ItCodiceFiscale` | 16 characters, odd/even checksum tables; omocodia letters in digit positions | Compact uppercase |
+| `ItPartitaIva` | 11 digits, alternating doubling checksum | Compact |
+| `FrSiren` | 9 digits, Luhn | `732 829 320` |
+| `FrSiret` | 14 digits, Luhn; the `356000000` La Poste prefix uses digit sum divisible by 5 | `732 829 320 00074` |
+| `UsEin` | 9 digits, valid IRS prefix; no check digit | `12-3456789` |
+| `UsAba` | 9 digits, 3-7-1 weighted checksum | Compact |
+| `AuAbn` | 11 digits, subtract 1 from first digit, weighted mod 89 | `51 824 753 556` |
+| `InGstin` | State 01–38/97/99, PAN, registration character, Z and base-36 check character | Compact uppercase |
+| `SwiftBic` | 8 or 11 characters; bank letters, ISO 3166-1 country, location and optional branch | Compact uppercase |
+
+All are stored without separators; the enum values are the snake_case names (`br_cpf`, `it_codice_fiscale`, `swift_bic`, etc.). No additional arguments or lookup service are needed. Empty, whitespace-only and null values are accepted and stored as `null`; add `required()` when a number must be entered. These checks establish format and checksum only, not whether an identifier is registered. CNPJ support here is deliberately limited to the numeric form. Existing types, defaults and stored shapes are unchanged.
 
 ### Hiding numbers
 
@@ -1985,6 +2205,37 @@ SerialNumberInput::make('serial')->scan(formats: ['code_128', 'data_matrix'])
 | `sound` / `vibrate` | Feedback when a code is read. Default `true`. |
 
 Rule for other fields and the API: `new Rules\Barcode([BarcodeFormat::Ean13])`.
+
+## Showing barcodes and QR codes
+
+Render stored values locally as SVG in tables and infolists. No value is sent to an external service. Scanning remains unchanged.
+
+```php
+use Qalainau\FilamentWarpInput\Enums\BarcodeFormat;
+use Qalainau\FilamentWarpInput\Tables\BarcodeColumn;
+use Qalainau\FilamentWarpInput\Infolists\BarcodeEntry;
+
+BarcodeColumn::make('tracking_url')->size(96)->showValue(), // QR by default
+BarcodeColumn::make('sku')->format(BarcodeFormat::Code128),
+BarcodeEntry::make('ean')->format(BarcodeFormat::Ean13)->showValue()->downloadable(),
+```
+
+| Method | Purpose |
+| --- | --- |
+| `format(BarcodeFormat or Closure)` | QR by default; also Code128, Ean13, Ean8, UpcA and Code39. Enum values are unchanged. |
+| `size(int or Closure = 96)` | Image width in pixels, constrained to 24–1024; aspect ratio and quiet zones are retained. |
+| `showValue(bool or Closure = true)` | Show the stored text below the image; off by default. |
+| `downloadable(bool or Closure = true)` | Infolists only: offer an SVG download. Off by default; PNG and enlargement modals are not provided. |
+
+Invalid EAN/UPC check digits, unsupported formats, empty values and oversized input produce escaped text instead of an exception. QR accepts up to 2953 UTF-8 bytes; linear codes accept up to 200 bytes. QR encoding capacity can impose a lower limit for a particular payload. SVG descriptions and displayed text escape the value.
+
+QR codes need [`bacon/bacon-qr-code`](https://github.com/Bacon/BaconQrCode) (BSD-2-Clause). Install it only if you need QR codes:
+
+```bash
+composer require bacon/bacon-qr-code
+```
+
+QR generation also needs the PHP `xmlwriter` extension. The other formats need nothing extra. Missing QR dependencies raise an exception with installation instructions when drawing a QR code. Code128 supports ASCII (including control characters); Code39 uses its basic uppercase alphabet without the optional check character. EAN/UPC require the complete number with a valid check digit. `Support\BarcodeSvg::make($value, $format = BarcodeFormat::QrCode, $size = 96)` returns SVG or `null` for values that cannot be encoded.
 
 ## Text from a photo (OCR)
 

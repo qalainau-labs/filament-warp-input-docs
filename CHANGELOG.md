@@ -2,6 +2,26 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [Unreleased]
+
+## [1.2.0] - 2026-11-23
+
+### Added
+
+- **Address suggestions from Google or Mapbox**: `GooglePlaces` and `Mapbox` can be passed to `WarpInput::addressSuggestions()` if you have a key. They are called from your server, so the key never reaches the browser. The default suggestions are unchanged. See [Address suggestions while typing](README.md#address-suggestions-while-typing).
+- **Rewrite with AI: `aiRewrite()`** on `WarpTextInput` and `WarpTextarea`: a button offers “Make polite”, “Shorten”, “Bullet points”, “Translate to English” or your own instructions, shows the original and the rewritten text side by side, and lets you replace (and undo) or cancel. Off unless you call it. **It sends the field's text to the AI provider you set up (Anthropic by default).** Who may use it, the text length and the number of requests per minute are checked on the server. See [Rewrite with AI](README.md#rewrite-with-ai).
+
+- **IDs from 13 more countries in `IdInput`**: Brazil's CPF and CNPJ, Spain's NIF/NIE and CIF, Italy's Codice Fiscale and Partita IVA, France's SIREN and SIRET, the US EIN and ABA routing number, Australia's ABN, India's GSTIN, and SWIFT/BIC codes — each checked with its check digits (or, for SWIFT/BIC, its shape and country) and shown in the usual grouping. See [The ID field](README.md#the-id-field).
+- **Durations: `DurationInput`**: type `1:30`, `1.5h`, `90m` or `1時間30分` and it is saved as whole minutes. `roundTo(15)`, `minMinutes()` / `maxMinutes()`, and `DurationColumn`, `DurationEntry` and the `DurationSum` total show the minutes as `1:30` or `1h 30m`. See [Durations](README.md#durations).
+- **Range filters: `MoneyRangeFilter` and `NumberRangeFilter`**: filter a table by “from” and/or “to” an amount or a number, with a heading that names the column and indicators like “Total: $1,000–$5,000”. See [Range filters](README.md#range-filters).
+- **Edit values in table rows: `MoneyInputColumn`, `NumberInputColumn` and `PhoneInputColumn`**: change a price, quantity or phone number right in the list. They save in the same format and check the same rules as `MoneyInput`, `NumberInput` and `PhoneInput`; a value that can't be saved is reported and put back. See [Editing values in table rows](README.md#editing-values-in-table-rows).
+- **Show barcodes and QR codes: `BarcodeColumn` and `BarcodeEntry`**: draw a saved value as a QR code, Code 128, EAN-13, EAN-8, UPC-A or Code 39 on the server, as SVG. `BarcodeEntry::downloadable()` adds an SVG download. QR codes use `bacon/bacon-qr-code` (BSD-2-Clause), install it with `composer require bacon/bacon-qr-code` if you need QR codes; the other formats need nothing extra. See [Showing barcodes and QR codes](README.md#showing-barcodes-and-qr-codes).
+
+### Fixed
+
+- **Smart paste knows "today" in the panel's time zone**: the date given to the AI (to resolve "tomorrow", "next Friday") was the app's UTC date, so with the panel set to e.g. America/New_York it was a day ahead during the UTC night. It now uses the panel's time zone (`FilamentTimezone`).
+- **`UrlInput::openButton()` stayed greyed out and did nothing in some places:** when the field's value arrives after the field is drawn (for example a row of a Warp Repeater table that turns into a real field when you hover it), the open button was disabled even though the field held a valid URL. The button now re-checks the value right after it is drawn, when the pointer reaches it, and when the field gets focus.
+
 ## [1.1.3] - 2026-11-20
 
 ### Fixed

@@ -4,6 +4,12 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-24
+
+### Fixed
+
+- **The “Stamp” button was hard to read in dark mode**: white text on the light primary color (contrast 1.86 with a teal panel). In dark mode the button text is now dark (contrast above 10:1); the same goes for “Use this text” when reading text from a photo. Light mode is unchanged.
+
 ## [1.2.0] - 2026-11-23
 
 ### Added

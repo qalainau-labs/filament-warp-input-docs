@@ -4,6 +4,12 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-25
+
+### Changed
+
+- The small script that keeps text typed before a field's script finishes loading (added in 1.2.2) is now shared with Warp DatePicker and Warp Offline. When several Warp plugins are installed, it runs once per page and watches the fields of all of them. Nothing to change in your app.
+
 ## [1.2.2] - 2026-11-25
 
 ### Fixed

@@ -4,6 +4,12 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-25
+
+### Fixed
+
+- **Text typed before a field's script finished loading was lost**: Warp Input fields load their script when they appear, and on a slow connection or a busy device the first characters typed (or a click on “Create” right away) went nowhere: the field was emptied when the script arrived, and the record could be saved without them. Those characters now reach the form and stay in the field. A re-render while the script was still loading (for example a validation error) also no longer shows JavaScript errors such as `noteLevel is not defined`. Nothing to change in your app; if you added a workaround that waits for `[data-warp-input-ready]` before typing, you can remove it.
+
 ## [1.2.1] - 2026-11-24
 
 ### Fixed

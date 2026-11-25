@@ -1623,7 +1623,7 @@ Set `ANTHROPIC_API_KEY` in your deployment environment. The key stays on the ser
 | `using` | `null` | A class implementing `Ai\RewritesText`; takes priority over the gateway and does not require an Anthropic key |
 | `freeform` | `false` | Allow a user instruction, up to 500 characters |
 | `authorize` | Field is editable | Closure checked both when rendering and before the server call |
-| `perMinute` | `10` | Requests per user per minute, shared across rewrite fields |
+| `perMinute` | `null` (10) | Requests per user per minute, shared across rewrite fields. When left out, it is 10 for your own rewriter and the Anthropic key, and not counted through a `warp.ai` gateway (the gateway applies its own quota). Set it to keep a per-minute limit on the gateway too |
 
 The server accepts only action IDs configured on the field, checks authorization again, and rejects text over the field’s `maxLength()` (10,000 characters if absent). Returned text must fit the same limit. Provider failures show a translated notification. Disabled, read-only and hidden fields cannot request rewriting. A replacement stops if the user has edited the text while waiting.
 
@@ -1656,6 +1656,8 @@ WarpTextarea::make('reply')->aiRewrite(using: MyRewriter::class);
 WarpTextarea::make('reply')->aiRewrite()->aiFeature('reply_rewrite');
 ```
 
+**What people are told.** The button's tooltip, and the panel that opens when a field has several instructions, say in one small line where the text goes: “an AI service (Anthropic)” with the key, “the service this app uses” through the gateway or your own `using:` class (keys `rewrite.privacy` and `rewrite.privacy_other`, in all 10 languages). Fields without `aiRewrite()` don't change.
+
 `aiFeature(string|Closure|null $name)` names the gateway's meter; `getAiFeature()` returns the evaluated name or `null` for a blank name. Without a name the gateway counts `input.rewrite`. This setting affects only the gateway path. Your explicit rewriter and the legacy key path keep their behavior.
 
 **What the gateway receives.** The request has `v: 1`, `plugin: input`, `feature: rewrite`, an optional `meter`, `tier: fast`, and `max_output_tokens: 8192`. It includes the current Filament `tenant`, signed-in `user` and app `locale`, as described in the [shared gateway example](#which-ai-service-is-used). `instructions` contains fixed rewriting rules, never the field text or a freeform instruction. `input` is JSON with `instruction` (the selected action's prompt or the user's freeform instruction) and `text` (the unsaved field text). The gateway returns `['data' => ['text' => 'Rewritten text']]` using this JSON schema:
@@ -1664,7 +1666,7 @@ WarpTextarea::make('reply')->aiRewrite()->aiFeature('reply_rewrite');
 {"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}
 ```
 
-The returned text must be a nonempty string after trimming and fit the field's length limit. A gateway `unavailable()` sentence disables the button and appears beneath it; direct Livewire calls are refused with the same sentence. A refusal with `userMessage()` displays that sentence (trimmed, up to 300 characters); other errors display the translated rewrite failure message. The existing per-user rate limit still applies.
+The returned text must be a nonempty string after trimming and fit the field's length limit. A gateway `unavailable()` sentence disables the button and appears on its own small, muted line beneath it; direct Livewire calls are refused with the same sentence. A refusal with `userMessage()` displays that sentence (trimmed, up to 300 characters); other errors display the translated rewrite failure message. Through the gateway, the plugin does not count requests per minute unless you set `perMinute:`; the gateway's quota decides.
 
 
 ### Password
@@ -2516,7 +2518,7 @@ Instead of the key, you can bind an AI gateway to `warp.ai` (see [Which AI servi
 
 **Privacy.** When the user presses *Fill in the fields*, the pasted text, the labels and placeholders of the fields (and the labels of up to 100 options of each choice field), today's date, the panel's country and currency are sent to Anthropic (with the key) or to your gateway (with `warp.ai`) — never on their own. The values already in the form are not sent. The dialog says so under the text box. Leave the feature off, or use `using` with a service you run, for data that must not leave your servers.
 
-**Limits.** Up to 10,000 characters per paste, and 20 tries a minute per user. If the key is missing or Claude does not answer, the user sees a short message and fills in the fields by hand.
+**Limits.** Up to 10,000 characters per paste, and 20 tries a minute per user (through a `warp.ai` gateway, the gateway's quota decides instead). If the key is missing or Claude does not answer, the user sees a short message and fills in the fields by hand.
 
 ```php
 use Qalainau\FilamentWarpInput\Ai\FillsForms;

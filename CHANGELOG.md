@@ -4,6 +4,21 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-25
+
+### Added
+
+- **Rewrite says where the text goes**: the rewrite button's tooltip, and the panel of a field with several instructions, now show one small line: “an AI service (Anthropic)” with the key, or “the service this app uses” through a `warp.ai` gateway or your own `using:` class. Translated into all 10 languages. Fields without `aiRewrite()` don't change.
+
+### Changed
+
+- **Rewrite and Paste to fill leave the per-minute count to a `warp.ai` gateway**: through the gateway, `aiRewrite()` no longer counts its 10 requests per minute and `smartPaste()` no longer counts its 20, because the gateway already counts and limits each request per company (like the Table plugin's AI filter). To keep a per-minute limit on the gateway too, pass `aiRewrite(perMinute: 10)`. Nothing changes for your own rewriter or filler (`using:`) and the Anthropic key.
+
+### Fixed
+
+- When a `warp.ai` gateway says Rewrite can't be used now, its sentence sits on its own small, muted line under the button (like Paste to fill), instead of next to the button in normal text across the field.
+- Waiting for the address service's turn (one request a second) now counts its 5 seconds on the real clock. Tests that freeze time with `travelTo()` while another request held the turn waited forever.
+
 ## [1.3.0] - 2026-11-25
 
 ### Changed

@@ -4,6 +4,28 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-25
+
+### Changed
+
+- `IdInput`: `$get()`, `$state` and the field's `getState()` now return the stored form, like Filament fields. Masked fields keep returning the mask token. Saved values and the screen are unchanged. **Upgrade:** code that removed spaces or dashes from `$get()` can be simplified.
+
+- `DurationInput`: `$get()`, `$state` and the field's `getState()` now return integer minutes instead of screen text, like Filament's `TimePicker` returns its stored format. Saved values and the screen are unchanged. **Upgrade:** `Duration::parse($get('time'))` keeps working because `Duration::parse()` now reads a PHP `int` as minutes (previously, an integer meant hours by default). Code that compared or displayed the text should use `Duration::format()`.
+
+- `MoneyInput` / `NumberInput`: `$get()`, `$state` and the field's `getState()` now return the number (a currency-rounded decimal string such as `'1234.50'` for money, `int|float` for numbers) instead of screen text, like Filament's numeric `TextInput`. Saved values and the screen are unchanged. **Upgrade:** `Numbers::parse($get('price'), …)` still works (it reads plain decimals), but is no longer needed; simplify code that compared or used `str_replace()` on grouped text.
+
+### Added
+
+- **Paste to fill through a shared AI gateway**: when your app binds an AI gateway to `warp.ai` (Warp SaaS does it for you, or write your own in about 20 lines), `smartPaste()` uses it instead of calling Anthropic itself. The gateway picks the model and can count and limit each request per company, person and feature. Name the feature with the new `FormAssist::aiFeature('order_intake')`. When the gateway says the feature can't be used now (for example, the monthly limit is reached), *Paste to fill* is greyed out with the gateway’s sentence next to it; when it refuses a request, the user sees its sentence. Nothing changes for apps without a gateway: `using:` still comes first, and the Anthropic key still works. See [Which AI service is used](README.md#which-ai-service-is-used).
+
+- **Rewrite through a shared AI gateway**: `aiRewrite()` uses `warp.ai` when bound, after an explicit `using:` rewriter and before the legacy Anthropic key. `WarpTextInput::aiFeature()` and `WarpTextarea::aiFeature()` name the meter. Gateway availability sentences disable the button and appear beneath it; refusal sentences are shown without exposing internal errors. Requests use feature `rewrite` with a validated text schema. See [Which AI service is used for rewriting](README.md#which-ai-service-is-used-for-rewriting).
+
+### Deprecated
+
+- `Qalainau\FilamentWarpInput\Ai\AnthropicTextRewriter`, and running `aiRewrite()` on `services.anthropic.key` without a gateway. Both keep working in 1.x and will be removed in 2.0. Bind a gateway to `warp.ai` instead.
+
+- `Qalainau\FilamentWarpInput\Ai\AnthropicFormFiller`, and running `smartPaste()` on `services.anthropic.key` without a gateway. Both keep working in 1.x and will be removed in 2.0. Bind a gateway to `warp.ai` instead; if you passed `using:` a class that counts Claude's tokens, you can replace it with `->aiFeature('…')` once the gateway counts.
+
 ## [1.2.3] - 2026-11-25
 
 ### Changed

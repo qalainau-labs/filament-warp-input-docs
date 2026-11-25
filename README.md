@@ -899,15 +899,7 @@ MoneyInput::make('amount_cents')
 
 **Saved values.** Decimal strings always have the currency's decimal places (`'12.00'`, `'1235'` for yen, `'1.500'` for KWD). The rounding happens on the server before validation and saving, so values from the API or tests are saved the same way as typed ones. Values you put into the form from PHP (`$set('total', 12.5)`, `->default(12.5)`, a model attribute `'1234.50'`) are read as numbers, not as text in the screen's locale.
 
-**What `$get()` returns.** Like Filament's own `mask()`, the form state holds what the user sees (`'1,234.50'`). To work with the number in your own closures, parse it the same way the field does:
-
-```php
-use Qalainau\FilamentWarpInput\Support\Numbers;
-
-$amount = Numbers::parse($get('price'), Numbers::symbols(app()->getLocale()));   // '1234.5' or null
-```
-
-Most of the time you don't need this: use [`calculate()`](#calculated-fields) instead.
+**What `$get()` returns.** `$get('price')`, `$state` in closures (including `afterStateUpdated`) and the field's `getState()` return a plain decimal string rounded to the currency's digits: `'1234.50'`, yen `'1235'`, KWD `'1.500'`. This is always the typed amount, even with `storeAsMinorUnits()` or the tax toggle. Empty values return `null`; unreadable text stays unchanged so `numeric` validation rejects it. Like Filament's numeric fields, the raw Livewire property (`$this->data['price']`, `$wire.get()`, JS) still holds the screen text (`'1,234.50'`, German `'1.234,50'`). `Numbers::parse($get(...), …)` is no longer needed. `$set()`, `default()` and model values still accept numbers, plain decimals, minor-unit integers on minor-unit fields, and formatted screen text.
 
 ### Tax
 
@@ -1017,6 +1009,8 @@ NumberInput::make('bags')->packSize(10, PackSizeRounding::Warn)   // only a warn
 
 Saved values are numbers: an `int` for whole numbers and a `float` otherwise.
 
+**What `$get()` returns.** `$get()`, `$state` in closures (including `afterStateUpdated`) and the field's `getState()` return an `int` for whole numbers and a `float` otherwise, with `decimals()` rounding applied. `packSize()` applies on blur or saving. Empty values return `null`; unreadable text stays unchanged for `numeric` validation. The raw Livewire property and JS still hold the screen text, like Filament's numeric fields. `$set()`, `default()` and model values accept numbers, plain decimals and formatted screen text.
+
 ## Durations
 
 `DurationInput` reads a length of time and saves **integer minutes**. It accepts `1:30`, `1.5h`, `1,5h`, `90m`, `90min`, `1h 30m`, `1h30`, full-width digits and colons, and Japanese forms such as `1時間30分`, `90分` and `1.5時間`.
@@ -1042,7 +1036,9 @@ DurationEntry::make('elapsed')->displayFormat('short');
 
 The development app's **Fields → Durations** page demonstrates the default field, `plainNumbersAs('minutes')->roundTo(15)`, and short display with a 15–600 minute limit. For nearest-15-minute rounding, `1:07` (67 minutes) and a bare `65` in the minutes field both become `1:00` and save `60`. **Quotes (money)** includes a duration editor, a duration column and its sum.
 
-Use an integer or bigint database column for minutes. Loading a saved `90` shows `1:30`; entering a bare `90` means 90 hours unless `plainNumbersAs('minutes')` is set. Fractional minutes round to whole minutes, with halves rounded up. The minute part of a clock or a compound duration must be 0–59. Negative values and values beyond JavaScript's safe integer range are refused. Unreadable text stays in the field with an example message and fails server validation. The server reads the text again before saving, including when JavaScript is disabled. After a validation error, you can correct the text and immediately click the form action; `getState()` returns integer minutes (for example, `1:30` becomes `90`). The preview hides on blur while retaining its space so nearby buttons stay in place.
+Use an integer or bigint database column for minutes. Loading a saved `90` shows `1:30`; typing the bare text `90` means 90 hours unless `plainNumbersAs('minutes')` is set. Fractional minutes round to whole minutes, with halves rounded up. The minute part of a clock or a compound duration must be 0–59. Negative values and values beyond JavaScript's safe integer range are refused. Unreadable text stays in the field with an example message and fails server validation. The server reads the text again before saving, including when JavaScript is disabled. After a validation error, you can correct the text and immediately click the form action; `getState()` returns integer minutes (for example, `1:30` becomes `90`). The preview hides on blur while retaining its space so nearby buttons stay in place.
+
+**What `$get()` returns:** `$get('duration')`, `$state` and the field's `getState()` return integer minutes after `roundTo()` (or `null` when empty), the same value that is saved. The raw Livewire state keeps the screen text, such as `'1:30'`. Unreadable text passes through unchanged so validation can refuse it; out-of-range values still return minutes and fail validation. `Duration::parse()` reads PHP integers as minutes, so `Duration::parse($get('duration'))` keeps working. Typed numeric text still follows `plainNumbersAs()`. Use `Duration::format()` when you need display text.
 
 ## Discounts and fees
 
@@ -1612,19 +1608,19 @@ WarpTextarea::make('note')->aiRewrite(
 
 With exactly one action and `freeform: false`, the first button immediately requests a rewrite and opens the comparison. Multiple actions, or `freeform: true`, open the instruction menu with a heading. The draft stays unchanged until **Replace**.
 
-Add the key to your application's `config/services.php` (the plugin reads configuration, never environment variables directly):
+The legacy Anthropic path reads the key from your application's `config/services.php` (the plugin reads configuration, never environment variables directly):
 
 ```php
 'anthropic' => ['key' => env('ANTHROPIC_API_KEY')],
 ```
 
-Set `ANTHROPIC_API_KEY` in your deployment environment. The key stays on the server. Without a key, the default rewrite button is hidden and direct Livewire requests are refused. The default model is the same as smart paste (`AnthropicFormFiller::DEFAULT_MODEL`).
+Set `ANTHROPIC_API_KEY` in your deployment environment. The key stays on the server. This direct Anthropic path is deprecated: it keeps working in 1.x and will be removed in 2.0. Bind `warp.ai` instead. Without a gateway, a key or `using:`, the rewrite button is hidden and direct Livewire requests are refused. The legacy default model is the same as smart paste (`AnthropicFormFiller::DEFAULT_MODEL`).
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `condition` | `true` when `aiRewrite()` is called | Boolean or closure to enable the feature for this field |
 | `actions` | `['polite', 'shorten', 'bullets', 'english']` | Which built-in actions to show; custom entries contain `label` and `prompt` |
-| `using` | `AnthropicTextRewriter::class` | A class implementing `Ai\RewritesText`; custom classes do not require an Anthropic key |
+| `using` | `null` | A class implementing `Ai\RewritesText`; takes priority over the gateway and does not require an Anthropic key |
 | `freeform` | `false` | Allow a user instruction, up to 500 characters |
 | `authorize` | Field is editable | Closure checked both when rendering and before the server call |
 | `perMinute` | `10` | Requests per user per minute, shared across rewrite fields |
@@ -1646,6 +1642,29 @@ class MyRewriter implements RewritesText
 
 WarpTextarea::make('reply')->aiRewrite(using: MyRewriter::class);
 ```
+
+
+#### Which AI service is used for rewriting
+
+`aiRewrite()` uses the first available source:
+
+1. **`using:`**: your class implementing `RewritesText`.
+2. **An AI gateway bound to `warp.ai`**: Warp SaaS binds it for you. Without Warp SaaS, use the [gateway implementation and binding example](#which-ai-service-is-used); it also works with Rewrite's schema below.
+3. **`services.anthropic.key`**: the deprecated direct Anthropic path, supported in 1.x and removed in 2.0.
+
+```php
+WarpTextarea::make('reply')->aiRewrite()->aiFeature('reply_rewrite');
+```
+
+`aiFeature(string|Closure|null $name)` names the gateway's meter; `getAiFeature()` returns the evaluated name or `null` for a blank name. Without a name the gateway counts `input.rewrite`. This setting affects only the gateway path. Your explicit rewriter and the legacy key path keep their behavior.
+
+**What the gateway receives.** The request has `v: 1`, `plugin: input`, `feature: rewrite`, an optional `meter`, `tier: fast`, and `max_output_tokens: 8192`. It includes the current Filament `tenant`, signed-in `user` and app `locale`, as described in the [shared gateway example](#which-ai-service-is-used). `instructions` contains fixed rewriting rules, never the field text or a freeform instruction. `input` is JSON with `instruction` (the selected action's prompt or the user's freeform instruction) and `text` (the unsaved field text). The gateway returns `['data' => ['text' => 'Rewritten text']]` using this JSON schema:
+
+```json
+{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}
+```
+
+The returned text must be a nonempty string after trimming and fit the field's length limit. A gateway `unavailable()` sentence disables the button and appears beneath it; direct Livewire calls are refused with the same sentence. A refusal with `userMessage()` displays that sentence (trimmed, up to 300 characters); other errors display the translated rewrite failure message. The existing per-user rate limit still applies.
 
 
 ### Password
@@ -1776,6 +1795,8 @@ Tax numbers, bank accounts, barcodes and postal codes all look like "just text",
 ### The ID field
 
 Pick a type and you get the formatting, the validation and the stored shape in one line. `IdInput` is a Filament `TextInput`, so `required()`, `placeholder()`, `live()` and friends keep working.
+
+**What `$get()` returns.** `$get()`, `$state` and the field's `getState()` return the stored form (for example, `DE89370400440532013000` for an IBAN); raw Livewire state keeps the screen text with spaces. Without a type, text is trimmed; empty text returns `null`. Invalid text passes through as trimmed, half-width text so validation can reject it. Masked fields deliberately keep returning the mask token, never the hidden number: code may print `$get()` in helper text. Saved values and screen formatting are unchanged.
 
 ```php
 use Qalainau\FilamentWarpInput\Enums\IdType;
@@ -2479,7 +2500,7 @@ FormAssist::make()->smartPaste()
 ],
 ```
 
-Without a key (and without `using`), the button is not shown.
+Instead of the key, you can bind an AI gateway to `warp.ai` (see [Which AI service is used](#which-ai-service-is-used)). With no gateway, no key and no `using`, the button is not shown.
 
 - **The answer goes through your fields.** Claude returns text for each field, and each field turns it into its value the same way as [pasting from a spreadsheet](#paste-from-a-spreadsheet-spreadsheetpaste): a choice is found by its label, numbers and dates are read, `PhoneInput` formats the number for the country, `MoneyInput` writes the amount in the user's format, and `EmailInput`, `UrlInput` and the address fields check the value when the form is saved, as when it is typed. A value that doesn't fit (no such option, not a number or a date) is left out.
 - **Line items.** For each repeater at the top level of the form (Filament's `Repeater`, `Repeater::table()`, Warp Repeater), the items listed in the text become rows: empty rows are filled first, then rows are added up to `maxItems()`.
@@ -2493,7 +2514,7 @@ Without a key (and without `using`), the button is not shown.
 | `using` | `null` | A class implementing `Qalainau\FilamentWarpInput\Ai\FillsForms`, to use another service or your own rules. |
 | `except` | `[]` | Field names (or state paths) that are never sent and never filled. |
 
-**Privacy.** When the user presses *Fill in the fields*, the pasted text, the labels and placeholders of the fields (and the labels of up to 100 options of each choice field), today's date, the panel's country and currency are sent to Anthropic — never on their own. The values already in the form are not sent. The dialog says so under the text box. Leave the feature off, or use `using` with a service you run, for data that must not leave your servers.
+**Privacy.** When the user presses *Fill in the fields*, the pasted text, the labels and placeholders of the fields (and the labels of up to 100 options of each choice field), today's date, the panel's country and currency are sent to Anthropic (with the key) or to your gateway (with `warp.ai`) — never on their own. The values already in the form are not sent. The dialog says so under the text box. Leave the feature off, or use `using` with a service you run, for data that must not leave your servers.
 
 **Limits.** Up to 10,000 characters per paste, and 20 tries a minute per user. If the key is missing or Claude does not answer, the user sees a short message and fills in the fields by hand.
 
@@ -2518,6 +2539,80 @@ FormAssist::make()->smartPaste(using: OwnFiller::class)
 ```
 
 Throw a `RuntimeException` with a message for the user when the service fails.
+
+#### Which AI service is used
+
+`smartPaste()` takes the first of these that your app has, and shows no button when it has none:
+
+1. **`using`**: your own class implementing `FillsForms` (the `OwnFiller` example below).
+2. **An AI gateway bound to `warp.ai`** (since 1.3). [Warp SaaS](https://warpui.com) binds one for you: it picks the model, counts each request per company, person and feature, and stops at the limits of the company's plan. Without Warp SaaS, write your own (below).
+3. **`services.anthropic.key`**: Warp Input calls Claude itself. *Deprecated*: this keeps working in 1.x, and will be removed in 2.0. Move to a gateway when you can.
+
+With a gateway, name what you count with `aiFeature()`. Warp SaaS counts and limits each name on its own (for example, orders read from email on the Pro plan only); without it, requests are counted as `input.form_fill`.
+
+```php
+FormAssist::make()
+    ->smartPaste()
+    ->aiFeature('order_intake')
+```
+
+Before the button is shown, Warp Input asks the gateway whether the feature can be used now (`unavailable()`). When it answers with a sentence (“Your company has used all 200 AI requests for this month.”), the button is greyed out and the sentence is shown next to it. When the gateway refuses a request, the user sees the gateway's own sentence (`userMessage()` on the exception), or “The text couldn't be read” when there is none. The page never fails.
+
+**What the gateway receives.** One array per press of *Fill in the fields*:
+
+| Key | Value |
+| --- | --- |
+| `v` | `1` |
+| `plugin`, `feature` | `'input'`, `'form_fill'` |
+| `meter` | Your `aiFeature()` name. Left out without it. |
+| `tier` | `'fast'`. No model name: the gateway picks it. |
+| `instructions` | The rules, today's date, the panel's country and currency, and the fields: labels, placeholders, up to 100 option labels each. In English. Never the pasted text. |
+| `input` | The pasted text, as is. Treat it as data, not as instructions. |
+| `schema` | The JSON schema of the answer: a text or `null` for each field, and rows for each repeater. |
+| `max_output_tokens` | `8192` |
+| `tenant`, `user` | The current Filament tenant (or `null`) and the signed-in user. |
+| `locale` | The app's locale, for the gateway's messages. |
+
+The gateway returns `['data' => [...]]` in the shape of `schema`. Every value is checked as above, and anything that doesn't fit is dropped.
+
+**Writing your own gateway** (no counting, no limits). This one calls Claude with the Anthropic API; any service that answers in a JSON schema works the same way:
+
+```php
+// app/Ai/AiGateway.php
+namespace App\Ai;
+
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+class AiGateway
+{
+    public function ask(array $request): array
+    {
+        $response = Http::timeout(90)
+            ->withHeaders(['x-api-key' => config('services.anthropic.key'), 'anthropic-version' => '2023-06-01'])
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model' => $request['tier'] === 'smart' ? 'claude-sonnet-5-5' : 'claude-haiku-5-5',
+                'max_tokens' => $request['max_output_tokens'] ?? 2000,
+                'system' => $request['instructions'],
+                'output_config' => ['format' => ['type' => 'json_schema', 'schema' => $request['schema']]],
+                'messages' => [['role' => 'user', 'content' => $request['input']]],
+            ])
+            ->throw();
+
+        $text = collect($response->json('content'))->firstWhere('type', 'text')['text'] ?? '';
+        $data = json_decode($text, true);
+
+        return is_array($data) ? ['data' => $data] : throw new RuntimeException('No answer.');
+    }
+}
+
+// app/Providers/AppServiceProvider.php, in register()
+$this->app->singleton('warp.ai', \App\Ai\AiGateway::class);
+```
+
+Add `unavailable(array $request): ?string` to the class to grey out the button (return a sentence, or `null` when it can be used). Throw an exception with a `userMessage(): string` method to show your own message. The same `warp.ai` will be used by the other AI features of Warp plugins, one at a time.
+
+**Moving from the Anthropic key.** Bind a gateway and remove nothing else: `smartPaste()` uses it as soon as it is bound, and `model:` is no longer used (the gateway chooses). If you passed `using:` a class that counts Claude's tokens with `AnthropicFormFiller::usage()`, you can drop that class and keep only `->aiFeature('…')`: the gateway counts.
 
 ## Editing on the view page (`warpEditable()`)
 

@@ -1113,11 +1113,15 @@ use Qalainau\FilamentWarpInput\Forms\RatingInput;
 RatingInput::make('rating')->allowHalf()
 RatingInput::make('recommend')->style(RatingStyle::Numbers)->max(10)
 RatingInput::make('delivery')->style(RatingStyle::Faces)
+RatingInput::make('quality')->labels([1 => 'Poor', 2 => 'Fair', 3 => 'Good', 4 => 'Very good', 5 => 'Excellent'])
+RatingInput::make('precision')->allowQuarter() // Store in a decimal(3,2) column (or equivalent).
 ```
 
 - Click a star to choose it; click it again to clear the rating (`clearable(false)` to keep a value).
 - With `allowHalf()`, the left half of a star chooses x.5.
-- Keyboard: Tab to the rating, then ← → (or ↑ ↓) move by one step (half a step with `allowHalf()`), Home and End go to the lowest and highest, 1–9 jump to that value, Delete, Backspace or 0 clear it.
+- With `allowQuarter()`, the four quarters of each star or heart choose x.25, x.5, x.75 and the whole value. It takes priority over `allowHalf()`. Use it only with a database column that preserves two decimal places, such as `decimal(3,2)`; an integer column or one decimal place cannot store these values. Values are saved as floats (`3.25`), or integers for whole ratings.
+- `labels()` gives values developer-written names, shown below the field, in each item's tooltip and in the screen reader text using the existing translated format, such as *"Good (3 out of 5)"*. Integer keys 1–`max` are supported; out-of-range keys and blank labels are ignored. Fractional ratings use the integer part (`3.75` uses key `3`); missing names fall back to the value alone. For faces, custom names take priority over the built-in face names.
+- Keyboard: Tab to the rating, then ← → (or ↑ ↓) move by one step (0.5 with `allowHalf()`, 0.25 with `allowQuarter()`), Home and End go to the lowest and highest, 1–9 jump to that value, Delete, Backspace or 0 clear it.
 - Screen readers hear a slider with the value as text: *"3.5 out of 5"*, and for faces *"Happy (4 out of 5)"*.
 
 | Method | What it does |
@@ -1125,6 +1129,8 @@ RatingInput::make('delivery')->style(RatingStyle::Faces)
 | `max(int $max)` | Number of steps, 1–10 (default 5). Faces always have 5. |
 | `style(RatingStyle $style)` | `Stars` (default), `Hearts`, `Numbers` or `Faces` |
 | `allowHalf(bool $condition = true)` | Half steps, for stars and hearts |
+| `allowQuarter(bool\|Closure $condition = true)` | Quarter steps for stars and hearts; overrides halves. Requires a column that preserves two decimal places. |
+| `labels(array\|Closure $labels)` | Integer value → name map; a closure returns the map. Also available on `RatingEntry` and `RatingColumn`. |
 | `clearable(bool $condition = true)` | Clear by choosing the same value again (default on) |
 | `color(string $color)` | Fill colour as CSS (`'#f59e0b'`). Default: amber stars, red hearts, the panel colour for numbers. |
 
@@ -1144,6 +1150,8 @@ use Qalainau\FilamentWarpInput\Tables\Summarizers\TaxSummary;
 MoneyColumn::make('total')->currencyColumn('currency')->summarize(MoneySum::make())
 MoneyColumn::make('amount_cents')->currency('USD')->storedAsMinorUnits()
 RatingColumn::make('rating')->summarize(RatingAverage::make())
+RatingColumn::make('quality')->labels([3 => 'Good', 4 => 'Very good', 5 => 'Excellent'])
+RatingEntry::make('precision')->allowQuarter() // draw 3.25 and 3.75 as quarter stars (without it: halves, as before)
 
 MoneyEntry::make('total')->currencyColumn('currency')
 RatingEntry::make('rating')

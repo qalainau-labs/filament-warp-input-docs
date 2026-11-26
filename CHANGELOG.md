@@ -2,7 +2,16 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
-## [Unreleased]
+## [1.5.0] - 2026-11-26
+
+### Added
+
+- `RatingInput::labels(array|Closure)` adds custom value names to item tooltips and the visible and accessible rating text. `RatingEntry` and `RatingColumn` support the same names.
+- `RatingInput::allowQuarter(bool|Closure)` enables quarter steps for stars and hearts, including pointer selection, keyboard controls, validation and numeric storage. Requires a database column that preserves two decimal places, such as `decimal(3,2)`. `RatingEntry` and `RatingColumn` get the same `allowQuarter()` to draw quarter-filled icons; without it they keep drawing halves as before. All options are off by default.
+
+### Fixed
+
+- **Paste to fill works on forms with many fields**: with a real AI model, `smartPaste()` failed on large forms (for example an order form with 18 fields and line items) because the model rejected the answer format ("too many parameters with union types"). The answer format now asks for an empty text instead of `null` for fields the pasted text doesn't state, so any number of fields is accepted. What gets filled in is unchanged.
 
 ## [1.4.0] - 2026-11-25
 

@@ -2,6 +2,12 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [1.5.1] - 2026-11-27
+
+### Fixed
+
+- `RatingInput` with `allowHalf()` or `allowQuarter()` wrote the visible and spoken rating text with a point in every language ("3.75 von 5"). It now uses the decimal mark of the language ("3,75 von 5"), like `RatingEntry` and `RatingColumn` already did.
+
 ## [1.5.0] - 2026-11-26
 
 ### Added

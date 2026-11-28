@@ -4,6 +4,12 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-11-28
+
+### Fixed
+
+- **No message at all when a save got no answer on a busy server.** Since 1.5.2, when Livewire dropped or cancelled the answer, saving a table input (`MoneyInputColumn`, `NumberInputColumn`…), "Paste to fill" (Smart Paste), adding a record from `RecordSelect` (`createOptionInline()`) and saving an inline edit (`warpEditable()`) ended silently, so you could not tell whether it worked (before 1.5.2 they could wrongly say "saved" or "couldn’t be added"). They now say that the save could not be confirmed and what to check: a table input shows a warning and reloads its row; Smart Paste says so in its window and keeps your text; an inline edit shows a warning. `RecordSelect` first looks the name up again and selects the record if it was added, so the same name is not added twice; otherwise it asks you to search for it first. Nothing is sent twice, and nothing changes when the server answers.
+
 ## [1.5.2] - 2026-11-28
 
 ### Fixed

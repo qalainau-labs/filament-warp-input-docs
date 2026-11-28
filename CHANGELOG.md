@@ -2,6 +2,14 @@
 
 All notable changes to `qalainau/filament-warp-input` are documented here.
 
+## [Unreleased]
+
+## [1.5.2] - 2026-11-28
+
+### Fixed
+
+- **Fields stuck in "Searching…" or "Adding…" on a busy server.** When Livewire dropped or cancelled the answer to one of the field's requests (it does this under load, when you move away, or when the same request is sent twice quickly), `RecordSelect`, `PickList` and `MentionTextarea` kept showing "Searching…", and the "Add “…”" row of `RecordSelect` could not be pressed again. The browser console also showed an error. Reads that only look something up (search results, labels, phone and e-mail details, duplicates, conflict checks and the like) are now asked once more; anything that writes or calls an outside service (adding a record, saving an inline edit, address lookups, AI rewrites, OCR, exchange rates) is never sent twice. When there is still no answer the field goes back to normal, says nothing it cannot know (no "couldn’t be added", no "saved"), and an inline edit or a table input reloads from the server so you see what was actually saved. Nothing changes when the server answers.
+
 ## [1.5.1] - 2026-11-27
 
 ### Fixed

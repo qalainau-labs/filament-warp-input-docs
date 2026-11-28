@@ -4,6 +4,13 @@ All notable changes to `qalainau/filament-warp-input` are documented here.
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-11-28
+
+### Fixed
+
+- **Screen readers were not told that the postal code list was open on Filament 5.12.** When a postal code matches several places, the field fills in the shared parts (such as the prefecture) and opens a list to choose from. Since Filament 5.12, a `Select` whose value changes sends its own request for the option label, and the redraw from that answer removed the `aria-expanded`, `aria-controls` and `aria-activedescendant` attributes from the postal code input. The list still opened and the arrow keys still worked, but a screen reader announced the field as closed and did not read the highlighted place. The same could happen with any other redraw while the list was open. These attributes now survive Livewire redraws. The same happened to `SuggestInput` (its open list and highlighted suggestion) and to the spoken value (`aria-valuenow`) of `NumberInput`, after any redraw.
+- **Faint text with some panel colors.** With an Amber, Yellow, Lime or Green primary color, text drawn in the primary color was hard to read (contrast about 2.7 to 3 on white): the e-mail typo suggestion ("Did you mean …?"), the "Open" link of a duplicate warning, the "Add “…”" row of `RecordSelect`, and the highlighted suggestion of `SuggestInput` and `MentionTextarea`. This text now uses the darker primary-700 shade (primary-800 on the grey row you are moving through with the arrow keys), so it reads at 4.5:1 or more with every Filament color. Borders, icons, the map pin and dark mode are unchanged.
+
 ## [1.5.3] - 2026-11-28
 
 ### Fixed
